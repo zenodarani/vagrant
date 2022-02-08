@@ -1,0 +1,96 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# All Vagrant configuration is done below. The "2" in Vagrant.configure
+# configures the configuration version (we support older styles for
+# backwards compatibility). Please don't change it unless you know what
+# you're doing.
+Vagrant.configure("2") do |config|
+
+ BOX_IMAGE = "ubuntu/impish64"
+ 
+ PROXY_HTTP = "http://10.0.2.2:5865"
+ PROXY_HTTPS = "http://10.0.2.2:5865"
+ PROXY_EXCLUDE = "localhost,127.0.0.1"
+ 
+ BASE_NETWORK = "10.10.20"
+ 
+ BOX_CHK_UPDATE = false
+ SSH_INSERT_KEY = false
+ PROXY_ENABLE = true
+ VB_CHK_UPDATE = false
+
+
+
+ config.vm.define "web" do |subconfigweb|
+  subconfigweb.vm.box = BOX_IMAGE
+  # se proxy abilitato
+  if PROXY_ENABLE == true & Vagrant.has_plugin?("vagrant-proxyconf")
+   # configurazione proxy
+   subconfigweb.proxy.http = PROXY_HTTP
+   subconfigweb.proxy.https = PROXY_HTTPS
+   subconfigweb.proxy.no_proxy = PROXY_EXCLUDE
+  end
+  # controlla se è prensente il plugin vbguest
+  if Vagrant.has_plugin?("vagrant-vbguest")
+   subconfigweb.vbguest.auto_update = VB_CHK_UPDATE
+  end
+  # port forwarding
+  subconfigweb.vm.network "forwarded_port", guest: 80, host: 9080
+  # scheda di rete interna
+  subconfigweb.vm.network "private_network", ip: "#{BASE_NETWORK}.10", virtualbox__intnet: true
+  # configurazine hostname
+  subconfigweb.vm.hostname = "mmweb.cpt.local"
+  # configurazione parametri vm
+  subconfigweb.vm.provider "virtualbox" do |vb|
+   vb.name = "MMWeb"
+   vb.memory = "1024"
+   vb.cpus = 1
+   #alter connection to the vm for more reliable boot
+   vb.customize ["modifyvm", :id, "--uart1", "0x3F8", "4"]
+   vb.customize ["modifyvm", :id, "--uartmode1", "file", File::NULL]
+   #vb.gui = true #enable only for debugging
+  end
+  subconfigweb.vm.box_check_update = BOX_CHK_UPDATE
+  subconfigweb.ssh.insert_key = SSH_INSERT_KEY
+  #provisioning
+  subconfigweb.vm.provision "shell", path: "./scripts/provision_update.sh"
+  subconfigweb.vm.provision "shell", path: "./scripts/provision_apache.sh"
+  subconfigweb.vm.provision "shell", path: "./scripts/provision_php5.sh"
+  # lo installa solo . . .
+  subconfigweb.vm.provision "shell", path: "./scripts/provision_mysql.sh"
+ end
+ 
+ config.vm.define "db" do |subconfigdb|
+  subconfigdb.vm.box = BOX_IMAGE
+  # se proxy abilitato
+  if PROXY_ENABLE == true & Vagrant.has_plugin?("vagrant-proxy")
+   # configurazione proxy
+   subconfigdb.proxy.http = PROXY_HTTP
+   subconfigdb.proxy.https = PROXY_HTTPS
+   subconfigdb.proxy.no_proxy = PROXY_EXCLUDE
+  end
+  # controlla se è prensente il plugin vbguest
+  if Vagrant.has_plugin?("vagrant-vbguest")
+   subconfigdb.vbguest.auto_update = VB_CHK_UPDATE
+  end
+  # scheda di rete interna
+  subconfigdb.vm.network "private_network", ip: "#{BASE_NETWORK}.15", virtualbox__intnet: true
+  # configurazione hostname
+  subconfigdb.vm.hostname = "mmdb.cpt.local"
+  # configurazione parametri vm
+  subconfigdb.vm.provider "virtualbox" do |vb|
+   vb.name = "MMDb"
+   vb.memory = "1024"
+   vb.cpus = 1
+   #alter connection to the vm for more reliable boot
+   vb.customize ["modifyvm", :id, "--uart1", "0x3F8", "4"]
+   vb.customize ["modifyvm", :id, "--uartmode1", "file", File::NULL]
+   #vb.gui = true #enable only for debugging
+  end
+  subconfigdb.vm.box_check_update = BOX_CHK_UPDATE
+  subconfigdb.ssh.insert_key = SSH_INSERT_KEY
+  #provisioning
+  subconfigdb.vm.provision "shell", path: "./scripts/provision_update.sh"
+ end
+end
